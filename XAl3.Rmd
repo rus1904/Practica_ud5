@@ -1,0 +1,122 @@
+---
+title: "XAl3"
+author: "Rustam"
+date: "2025-05-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+# Cargar librerías necesarias
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(ggplot2)
+library(dplyr)
+library(randomForest)
+library(pdp)
+library(readr)
+library(viridis)
+```
+
+# ------------------------------------------------------------
+# 1. PDP UNIDIMENSIONAL - PREDICCIÓN DE ALQUILER DE BICICLETAS
+# ------------------------------------------------------------
+
+```{r load-bike-data}
+# Cargar el dataset de día
+day <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/day.csv")
+day$yr <- as.factor(day$yr)
+day$season <- as.factor(day$season)
+day$weathersit <- as.factor(day$weathersit)
+```
+
+```{r train-rf-bike}
+# Entrenar modelo Random Forest para predecir 'cnt'
+set.seed(123)
+rf_bike <- randomForest(cnt ~ ., data = day %>% select(cnt, temp, hum, windspeed, instant), ntree = 200)
+```
+
+```{r pdp-1d-bike}
+# Generar PDPs 1D para las variables especificadas
+pdp_temp <- partial(rf_bike, pred.var = "temp")
+pdp_hum <- partial(rf_bike, pred.var = "hum")
+pdp_wind <- partial(rf_bike, pred.var = "windspeed")
+pdp_instant <- partial(rf_bike, pred.var = "instant") # días desde 2011
+
+# Graficar los PDPs
+autoplot(pdp_temp) + ggtitle("PDP: Temperatura")
+autoplot(pdp_hum) + ggtitle("PDP: Humedad")
+autoplot(pdp_wind) + ggtitle("PDP: Velocidad del viento")
+autoplot(pdp_instant) + ggtitle("PDP: Días desde 2011")
+```
+
+# -----------------------------------------------------
+# 2. PDP BIDIMENSIONAL - TEMP VS HUM (ALQUILER BICIS)
+# -----------------------------------------------------
+
+```{r sample-bike}
+# Submuestreo para evitar problemas de rendimiento
+set.seed(456)
+bike_sample <- day %>% select(temp, hum, cnt) %>% sample_n(500)
+```
+
+```{r rf-bike-sample}
+# Entrenar nuevo modelo solo con temp y hum
+rf_bike2 <- randomForest(cnt ~ temp + hum, data = bike_sample, ntree = 200)
+```
+
+```{r pdp-2d-bike}
+# Generar PDP 2D
+pdp_2d <- partial(rf_bike2, pred.var = c("temp", "hum"), grid.resolution = 20)
+
+# Visualizar con geom_tile y viridis
+ggplot(pdp_2d, aes(temp, hum, fill = yhat)) +
+  geom_tile(width = 0.02, height = 0.02) +
+  scale_fill_viridis_c() +
+  labs(title = "PDP 2D: cnt ~ temp + hum", x = "Temperatura", y = "Humedad") +
+  theme_minimal()
+```
+
+# -----------------------------------------------------
+# 3. PDP UNIDIMENSIONAL - PREDICCIÓN PRECIO DE CASAS
+# -----------------------------------------------------
+
+```{r load-house-data}
+# Cargar el dataset de casas
+kc <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/kc_house_data.csv")
+```
+
+```{r sample-house}
+# Submuestreo para mejorar eficiencia
+set.seed(789)
+kc_sample <- kc %>%
+  select(price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, yr_built) %>%
+  sample_n(1000)
+```
+
+```{r rf-house}
+# Entrenar modelo Random Forest para predicción de precio
+rf_house <- randomForest(price ~ bedrooms + bathrooms + sqft_living + sqft_lot + floors + yr_built,
+                         data = kc_sample, ntree = 200)
+```
+
+```{r pdp-house}
+# Generar PDPs 1D
+pdp_bedrooms <- partial(rf_house, pred.var = "bedrooms")
+pdp_bathrooms <- partial(rf_house, pred.var = "bathrooms")
+pdp_sqft <- partial(rf_house, pred.var = "sqft_living")
+pdp_floors <- partial(rf_house, pred.var = "floors")
+
+# Graficar los PDPs
+autoplot(pdp_bedrooms) + ggtitle("PDP: Dormitorios")
+autoplot(pdp_bathrooms) + ggtitle("PDP: Baños")
+autoplot(pdp_sqft) + ggtitle("PDP: Metros cuadrados habitables")
+autoplot(pdp_floors) + ggtitle("PDP: N.º de plantas")
+```
+
+# ----------------
+# FIN DEL INFORME
+# ----------------
