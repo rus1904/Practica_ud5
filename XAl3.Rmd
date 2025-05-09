@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-```{r setup, include=FALSE}
+```{r, include=FALSE}
 # Cargar librerías necesarias
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(ggplot2)
@@ -21,13 +21,17 @@ library(readr)
 library(viridis)
 ```
 
+
 # ------------------------------------------------------------
-# 1. PDP UNIDIMENSIONAL - PREDICCIÓN DE ALQUILER DE BICICLETAS
+# 1. One dimensional Partial Dependence Plot.
 # ------------------------------------------------------------
+
+To analyze the influence of key variables on the predicted bike rentals (`cnt`), we trained a Random Forest model using the features `temp`, `hum`, `windspeed`, and `instant` (which represents the number of days since 2011). We then used Partial Dependence Plots (PDPs) to visualize the marginal effect of each feature on the model's predictions.
+
 
 ```{r load-bike-data}
 # Cargar el dataset de día
-day <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/day.csv")
+day <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/day.csv", show_col_types = FALSE)
 day$yr <- as.factor(day$yr)
 day$season <- as.factor(day$season)
 day$weathersit <- as.factor(day$weathersit)
@@ -53,10 +57,33 @@ autoplot(pdp_wind) + ggtitle("PDP: Velocidad del viento")
 autoplot(pdp_instant) + ggtitle("PDP: Días desde 2011")
 ```
 
+
+- **Temperature (`temp`)**  
+  Temperature shows a strong positive influence on bike rentals up to a normalized value of approximately 0.7. As temperature rises, the number of predicted rentals increases significantly, peaking near that value. Beyond this point, the effect plateaus or slightly declines, suggesting that extreme heat may reduce bike usage.
+
+- **Humidity (`hum`)**  
+  Humidity has a negative impact on bike rentals. When humidity is low to moderate, predicted rentals are stable and relatively high. However, as humidity approaches 1.0, the predicted bike count drops sharply. This implies that people are less likely to rent bikes under very humid conditions.
+
+- **Wind speed (`windspeed`)**  
+  Wind speed also shows a decreasing relationship with bike usage. The PDP reveals that higher wind speeds slightly reduce the number of predicted rentals, although the effect is less dramatic compared to temperature or humidity.
+
+- **Days since 2011 (`instant`)**  
+  This variable captures a clear upward trend. The PDP shows that over time, the number of predicted rentals increased significantly, especially after day 400 (roughly March 2012). This reflects the growing popularity and adoption of the bike rental service over the two-year period.
+
+**Conclusion:**  
+Temperature and time progression are the strongest drivers of bike rental demand, while humidity and wind speed act as deterrents under unfavorable weather conditions. The PDPs provide a model-agnostic explanation of how each feature affects predictions, offering interpretability regardless of the internal structure of the Random Forest.
+
+
 # -----------------------------------------------------
-# 2. PDP BIDIMENSIONAL - TEMP VS HUM (ALQUILER BICIS)
+# 2. Bidimensional Partial Dependency Plot.
 # -----------------------------------------------------
 
+
+In this section, we examine the joint effect of temperature (`temp`) and humidity (`hum`) on the predicted number of bike rentals (`cnt`) using a 2D Partial Dependence Plot.
+
+To avoid performance issues due to dataset size, we selected a random sample of 500 rows from the `day.csv` dataset. A new Random Forest model was trained using only `temp` and `hum` as predictors. We then computed the partial dependence surface using a grid of resolution 20, and visualized the predictions using `geom_tile()` with a continuous color scale (`viridis`).
+
+The following heatmap shows the predicted bike count (represented by color intensity) for combinations of temperature (x-axis) and humidity (y-axis):
 ```{r sample-bike}
 # Submuestreo para evitar problemas de rendimiento
 set.seed(456)
@@ -80,13 +107,27 @@ ggplot(pdp_2d, aes(temp, hum, fill = yhat)) +
   theme_minimal()
 ```
 
+
+From the heatmap, we can clearly see that bike rental demand increases with temperature and decreases with humidity. The highest predicted values are observed in regions with high temperature and low to medium humidity, which are the most comfortable conditions for cycling.
+
+In contrast, areas with high humidity, regardless of temperature, tend to produce lower rental predictions. This supports the idea that very humid days discourage biking even if temperatures are favorable.
+
+This 2D PDP effectively captures interaction effects between the two variables, which cannot be seen in the 1D plots. It confirms that ideal weather conditions (warm and dry) strongly favor bike usage.
+
+
+
 # -----------------------------------------------------
-# 3. PDP UNIDIMENSIONAL - PREDICCIÓN PRECIO DE CASAS
+# 3. PDP to explain the price of a house.
 # -----------------------------------------------------
+
+
+
+To analyze how specific features influence house prices, we used the `kc_house_data.csv` dataset. Due to its large size, we extracted a random sample of 1,000 rows and trained a Random Forest model to predict `price` using the variables `bedrooms`, `bathrooms`, `sqft_living`, `sqft_lot`, `floors`, and `yr_built`. Then, we visualized the partial dependence of four key variables: `bedrooms`, `bathrooms`, `sqft_living`, and `floors`.
+
 
 ```{r load-house-data}
 # Cargar el dataset de casas
-kc <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/kc_house_data.csv")
+kc <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/kc_house_data.csv", show_col_types = FALSE)
 ```
 
 ```{r sample-house}
@@ -117,6 +158,21 @@ autoplot(pdp_sqft) + ggtitle("PDP: Metros cuadrados habitables")
 autoplot(pdp_floors) + ggtitle("PDP: N.º de plantas")
 ```
 
-# ----------------
-# FIN DEL INFORME
-# ----------------
+
+- **Bedrooms (`bedrooms`)**  
+  The number of bedrooms shows a non-linear and weak influence on the predicted price. While prices increase slightly up to 2 bedrooms, the effect diminishes or even reverses for houses with 3 to 5 bedrooms. This could indicate that additional rooms do not always imply higher value, possibly due to lower-quality housing. Beyond 6 bedrooms, the price stabilizes.
+
+- **Bathrooms (`bathrooms`)**  
+  Bathrooms have a strong and clearly positive impact on price. From 3 bathrooms onward, the predicted price rises rapidly. A sharp increase is observed around 6–7 bathrooms, suggesting the presence of luxury homes in that range.
+
+- **Living area (`sqft_living`)**  
+  This variable exhibits the most pronounced effect. Predicted prices grow steadily with more square meters of habitable space, especially after 4,000 sqft. Larger houses correlate with significantly higher valuations, confirming the economic value of spacious interiors.
+
+- **Floors (`floors`)**  
+  The number of floors also shows a consistent upward trend. Houses with more floors (especially 3) are generally predicted to have higher prices. This may be due to architectural prestige, better views, or larger usable area.
+
+**Conclusion:**
+
+The partial dependence plots confirm that the most influential features for predicting house prices are the **habitable area (sqft_living)** and the **number of bathrooms**. Both show strong and increasing trends with the predicted value. In contrast, the number of bedrooms has a more irregular and less impactful behavior, while the number of floors contributes positively but to a lesser extent. These insights, extracted from a Random Forest through PDPs, provide a model-agnostic understanding of how structural house features affect pricing.
+
+
