@@ -1,8 +1,17 @@
 ---
-title: "XAl3"
-author: "Rustam"
-date: "2025-05-05"
-output: html_document
+title: 'XAI3'
+author: "Samuel Marzano,Sergei Mintianskii and Rustam Suleimanov"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: true
+header-includes:
+- \usepackage{ragged2e}
+- \justifying
+css: styles.css
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +20,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r, include=FALSE}
-# Cargar librerías necesarias
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(ggplot2)
 library(dplyr)
@@ -22,39 +30,48 @@ library(viridis)
 ```
 
 
-# ------------------------------------------------------------
-# 1. One dimensional Partial Dependence Plot.
-# ------------------------------------------------------------
+# Intoduction
 
-To analyze the influence of key variables on the predicted bike rentals (`cnt`), we trained a Random Forest model using the features `temp`, `hum`, `windspeed`, and `instant` (which represents the number of days since 2011). We then used Partial Dependence Plots (PDPs) to visualize the marginal effect of each feature on the model's predictions.
+This analysis explores the interpretability of Random Forest models using Partial Dependence Plots (PDPs). This approach allows us to visualize the marginal influence of individual or combined variables on the predictions of complex models, without the need to inspect their internal structure.
+
+Two case studies are addressed. The first focuses on a bike rental dataset, where we analyze how weather conditions and the passage of time affect rental demand. The second case examines house price prediction in the Seattle area, evaluating the influence of structural features such as the number of bedrooms, bathrooms, and living area. In both scenarios, Random Forest models are trained on relevant subsets of the data, and one-dimensional and two dimensional PDPs are generated to provide deeper insight into nonlinear relationships and variable interactions.
+
+# One dimensional Partial Dependence Plot
 
 
-```{r load-bike-data}
-# Cargar el dataset de día
+To analyze the influence of key variables on the predicted bike rentals (cnt), we trained a Random Forest model using the features temp, hum, windspeed, and instant (which represents the number of days since 2011). We then used Partial Dependence Plots (PDPs) to visualize the marginal effect of each feature on the model's predictions.
+
+
+```{r load-bike-data, include=FALSE}
 day <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/day.csv", show_col_types = FALSE)
 day$yr <- as.factor(day$yr)
 day$season <- as.factor(day$season)
 day$weathersit <- as.factor(day$weathersit)
 ```
 
-```{r train-rf-bike}
-# Entrenar modelo Random Forest para predecir 'cnt'
+```{r train-rf-bike, include=FALSE}
 set.seed(123)
 rf_bike <- randomForest(cnt ~ ., data = day %>% select(cnt, temp, hum, windspeed, instant), ntree = 200)
 ```
 
-```{r pdp-1d-bike}
-# Generar PDPs 1D para las variables especificadas
+```{r pdp-1d-bike, echo=FALSE, fig.align='center', fig.width=6, fig.height=4}
+library(patchwork)
 pdp_temp <- partial(rf_bike, pred.var = "temp")
 pdp_hum <- partial(rf_bike, pred.var = "hum")
 pdp_wind <- partial(rf_bike, pred.var = "windspeed")
-pdp_instant <- partial(rf_bike, pred.var = "instant") # días desde 2011
+pdp_instant <- partial(rf_bike, pred.var = "instant") 
 
-# Graficar los PDPs
-autoplot(pdp_temp) + ggtitle("PDP: Temperatura")
-autoplot(pdp_hum) + ggtitle("PDP: Humedad")
-autoplot(pdp_wind) + ggtitle("PDP: Velocidad del viento")
-autoplot(pdp_instant) + ggtitle("PDP: Días desde 2011")
+
+compact_theme <- theme_minimal(base_size = 8) + 
+  theme(plot.title = element_text(size = 10, hjust = 0.5))
+
+p1 <- autoplot(pdp_temp) + ggtitle("PDP: Temperature") + compact_theme
+p2 <- autoplot(pdp_hum) + ggtitle("PDP: Humidity") + compact_theme
+p3 <- autoplot(pdp_wind) + ggtitle("PDP: Wind Velocity") + compact_theme
+p4 <- autoplot(pdp_instant) + ggtitle("PDP: Days since 2011") + compact_theme
+
+final_plot <- (p1 | p2) / (p3 | p4)
+final_plot
 ```
 
 
@@ -70,32 +87,31 @@ autoplot(pdp_instant) + ggtitle("PDP: Días desde 2011")
 - **Days since 2011 (`instant`)**  
   This variable captures a clear upward trend. The PDP shows that over time, the number of predicted rentals increased significantly, especially after day 400 (roughly March 2012). This reflects the growing popularity and adoption of the bike rental service over the two-year period.
 
-**Conclusion:**  
-Temperature and time progression are the strongest drivers of bike rental demand, while humidity and wind speed act as deterrents under unfavorable weather conditions. The PDPs provide a model-agnostic explanation of how each feature affects predictions, offering interpretability regardless of the internal structure of the Random Forest.
+
+To sumarise, the temperature and time progression are the strongest drivers of bike rental demand, while humidity and wind speed act as deterrents under unfavorable weather conditions. The PDPs provide a model-agnostic explanation of how each feature affects predictions, offering interpretability regardless of the internal structure of the Random Forest.
 
 
-# -----------------------------------------------------
+
 # 2. Bidimensional Partial Dependency Plot.
-# -----------------------------------------------------
-
 
 In this section, we examine the joint effect of temperature (`temp`) and humidity (`hum`) on the predicted number of bike rentals (`cnt`) using a 2D Partial Dependence Plot.
 
 To avoid performance issues due to dataset size, we selected a random sample of 500 rows from the `day.csv` dataset. A new Random Forest model was trained using only `temp` and `hum` as predictors. We then computed the partial dependence surface using a grid of resolution 20, and visualized the predictions using `geom_tile()` with a continuous color scale (`viridis`).
 
 The following heatmap shows the predicted bike count (represented by color intensity) for combinations of temperature (x-axis) and humidity (y-axis):
-```{r sample-bike}
+
+```{r sample-bike, include=FALSE}
 # Submuestreo para evitar problemas de rendimiento
 set.seed(456)
 bike_sample <- day %>% select(temp, hum, cnt) %>% sample_n(500)
 ```
 
-```{r rf-bike-sample}
+```{r rf-bike-sample, include=FALSE}
 # Entrenar nuevo modelo solo con temp y hum
 rf_bike2 <- randomForest(cnt ~ temp + hum, data = bike_sample, ntree = 200)
 ```
 
-```{r pdp-2d-bike}
+```{r pdp-2d-bike, echo=FALSE, fig.align='center', fig.width=6, fig.height=4}
 # Generar PDP 2D
 pdp_2d <- partial(rf_bike2, pred.var = c("temp", "hum"), grid.resolution = 20)
 
@@ -110,52 +126,45 @@ ggplot(pdp_2d, aes(temp, hum, fill = yhat)) +
 
 From the heatmap, we can clearly see that bike rental demand increases with temperature and decreases with humidity. The highest predicted values are observed in regions with high temperature and low to medium humidity, which are the most comfortable conditions for cycling.
 
-In contrast, areas with high humidity, regardless of temperature, tend to produce lower rental predictions. This supports the idea that very humid days discourage biking even if temperatures are favorable.
-
-This 2D PDP effectively captures interaction effects between the two variables, which cannot be seen in the 1D plots. It confirms that ideal weather conditions (warm and dry) strongly favor bike usage.
+In contrast, areas with high humidity, regardless of temperature, tend to produce lower rental predictions. This supports the idea that very humid days discourage biking even if temperatures are favorable. This 2D PDP effectively captures interaction effects between the two variables, which cannot be seen in the 1D plots. It confirms that ideal weather conditions (warm and dry) strongly favor bike usage.
 
 
 
-# -----------------------------------------------------
 # 3. PDP to explain the price of a house.
-# -----------------------------------------------------
+
+To analyze how specific features influence house prices, we used the kc_house_data.csv dataset. Due to its large size, we extracted a random sample of 1,000 rows and trained a Random Forest model to predict price using the variables bedrooms, bathrooms, sqft_living, sqft_lot, floors, and yr_built. Then, we visualized the partial dependence of four key variables: bedrooms, bathrooms, sqft_living, and floors.
 
 
-
-To analyze how specific features influence house prices, we used the `kc_house_data.csv` dataset. Due to its large size, we extracted a random sample of 1,000 rows and trained a Random Forest model to predict `price` using the variables `bedrooms`, `bathrooms`, `sqft_living`, `sqft_lot`, `floors`, and `yr_built`. Then, we visualized the partial dependence of four key variables: `bedrooms`, `bathrooms`, `sqft_living`, and `floors`.
-
-
-```{r load-house-data}
-# Cargar el dataset de casas
+```{r load-house-data, include=FALSE}
 kc <- read_csv("/Users/rustam/Documents/GitHub/Practica_ud5/kc_house_data.csv", show_col_types = FALSE)
 ```
 
-```{r sample-house}
-# Submuestreo para mejorar eficiencia
+```{r sample-house, include=FALSE}
 set.seed(789)
 kc_sample <- kc %>%
   select(price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, yr_built) %>%
   sample_n(1000)
 ```
 
-```{r rf-house}
-# Entrenar modelo Random Forest para predicción de precio
+```{r rf-house, include=FALSE}
 rf_house <- randomForest(price ~ bedrooms + bathrooms + sqft_living + sqft_lot + floors + yr_built,
                          data = kc_sample, ntree = 200)
 ```
 
-```{r pdp-house}
-# Generar PDPs 1D
+```{r pdp-house, echo = FALSE, fig.align='center', fig.width=6, fig.height=4}
 pdp_bedrooms <- partial(rf_house, pred.var = "bedrooms")
 pdp_bathrooms <- partial(rf_house, pred.var = "bathrooms")
 pdp_sqft <- partial(rf_house, pred.var = "sqft_living")
 pdp_floors <- partial(rf_house, pred.var = "floors")
 
-# Graficar los PDPs
-autoplot(pdp_bedrooms) + ggtitle("PDP: Dormitorios")
-autoplot(pdp_bathrooms) + ggtitle("PDP: Baños")
-autoplot(pdp_sqft) + ggtitle("PDP: Metros cuadrados habitables")
-autoplot(pdp_floors) + ggtitle("PDP: N.º de plantas")
+
+p1<-autoplot(pdp_bedrooms) + ggtitle("PDP: Bedrooms")
+p2<-autoplot(pdp_bathrooms) + ggtitle("PDP: Bathrooms")
+p3<-autoplot(pdp_sqft) + ggtitle("PDP: Habitable m2")
+p4<-autoplot(pdp_floors) + ggtitle("PDP: Number of floors")
+
+(p1 | p2) /
+(p3 | p4)
 ```
 
 
@@ -171,8 +180,15 @@ autoplot(pdp_floors) + ggtitle("PDP: N.º de plantas")
 - **Floors (`floors`)**  
   The number of floors also shows a consistent upward trend. Houses with more floors (especially 3) are generally predicted to have higher prices. This may be due to architectural prestige, better views, or larger usable area.
 
-**Conclusion:**
 
-The partial dependence plots confirm that the most influential features for predicting house prices are the **habitable area (sqft_living)** and the **number of bathrooms**. Both show strong and increasing trends with the predicted value. In contrast, the number of bedrooms has a more irregular and less impactful behavior, while the number of floors contributes positively but to a lesser extent. These insights, extracted from a Random Forest through PDPs, provide a model-agnostic understanding of how structural house features affect pricing.
+# Conclusions
+
+Partial Dependence Plot (PDP) analysis has proven to be a valuable tool for interpreting the behavior of complex machine learning models such as Random Forests:
+
+- In the bike rental case, the most influential variables were temperature and the number of days since the start of the service, both showing a positive effect on demand. In contrast, high levels of humidity and wind speed had a discouraging impact. The two-dimensional PDP confirmed that ideal conditions for bike usage occur under warm temperatures and low humidity.
+
+- In the housing price case, living area and the number of bathrooms were the most positively impactful factors. While features like the number of bedrooms and floors also influenced price predictions, their effects were more variable or moderate.
+
+These results illustrate how PDPs can break down the contribution of each feature, making the model more interpretable and aiding informed decision-making in both urban planning and real estate contexts. This technique thus stands out as a practical explanatory tool for predictive models in applied data science.
 
 
